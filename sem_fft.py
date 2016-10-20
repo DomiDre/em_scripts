@@ -33,6 +33,7 @@ class SEM_FFT():
             cdict['blue'].append([pos, b, b])
         self.cmap = matplotlib.colors.LinearSegmentedColormap('CustomMap', cdict)
         self.cmap.set_bad(color='black')
+        self.sem_cmap = "gray"
     
     def get_idx(self, array, value):
         idx_sorted = np.argsort(array)
@@ -68,7 +69,7 @@ class SEM_FFT():
     def plot_sem_image(self):
         fig = plt.figure()
         ax = fig.add_subplot(111)
-        im = ax.pcolormesh(self.x, self.y, self.data.T)#, cmap='gist_gray')
+        im = ax.pcolormesh(self.x, self.y, self.data.T, cmap=self.sem_cmap)
         divider = make_axes_locatable(ax)
         cax = divider.append_axes("right", size="5%", pad=0.05)
         cb = plt.colorbar(im, cax=cax)#, orientation='horizontal')
@@ -86,8 +87,8 @@ class SEM_FFT():
         fftdata = np.fft.fft2(self.data)
         absfft = np.abs(fftdata)
 
-        fftx = np.fft.fftfreq(self.Nx, d=self.x[1]-self.x[0])
-        ffty = np.fft.fftfreq(self.Ny, d=self.y[1]-self.y[0])
+        fftx = np.fft.fftfreq(self.Nx, d=self.x[1]-self.x[0])*2*pi
+        ffty = np.fft.fftfreq(self.Ny, d=self.y[1]-self.y[0])*2*pi
 
         self.fftdx = fftx[1] - fftx[0]
         self.fftdy = ffty[1] - ffty[0]
@@ -124,7 +125,7 @@ class SEM_FFT():
     def plot_fft(self):
         fig = plt.figure(figsize=(16/2.54, 12/2.54))
         ax = fig.add_subplot(121)
-        im = ax.pcolormesh(self.x, self.y, self.data.T, cmap=self.cmap)#, cmap='gist_gray')
+        im = ax.pcolormesh(self.x, self.y, self.data.T, cmap=self.sem_cmap)#, cmap='gist_gray')
         divider = make_axes_locatable(ax)
         cax = divider.append_axes("bottom", size="5%", pad=self.colorbar_pad)
         cb = plt.colorbar(im, cax=cax, orientation='horizontal')
@@ -148,7 +149,7 @@ class SEM_FFT():
         ax2.set_aspect('equal')
         ax2.set_xlim(min(self.fftx), max(self.fftx))
         ax2.set_ylim(min(self.ffty), max(self.ffty))
-        myLocator = mticker.MultipleLocator(0.2)
+        myLocator = mticker.MultipleLocator(0.5)
         ax2.xaxis.set_major_locator(myLocator)
         ax2.yaxis.set_major_locator(myLocator)
         fig.tight_layout()

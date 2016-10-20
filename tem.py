@@ -2,7 +2,7 @@ import lmfit
 import numpy as np
 import matplotlib.pyplot as plt
 
-class TEMEvaluator():
+class TEM():
     def __init__(self):
         self.counts = None
         self.errors = None
@@ -16,24 +16,13 @@ class TEMEvaluator():
     def initialize_data(self):
         self.Nbins = 10
         
-    def load_spheres(self, diameters):
-        self.sphere_diameters = diameters
-        self.make_count_histogram(self.sphere_diameters)
-        self.xlabel = "$\mathit{d} \, / \, nm$"
+    def load(self, diameters):
+        print("Load not defined.")
+    def prepare_length_histogram(self):
+        print("Prepare Length Histogram not defined.")
         
-    def load_cubes(self, alternating_edge_lengths):
-        self.cube_L = np.asarray(alternating_edge_lengths)
-        self.cube_a = self.cube_L[::2]
-        self.cube_b = self.cube_L[1::2]
-        self.cube_aspect = self.cube_b/self.cube_a
-    
-    def prepare_cube_length_histogram(self):
-        self.make_count_histogram(self.cube_L)
-        self.xlabel = "$\mathit{a} \, / \, nm$"
-    
-    def prepare_cube_aspect_histogram(self):
-        self.make_count_histogram(self.cube_aspect)
-        self.xlabel = "$\mathit{b} \, / \, \mathit{a}$"
+    def prepare_aspect_histogram(self):
+        print("Prepare Aspect Histogram not defined.")
     
     def make_count_histogram(self, lengths):
         self.raw_data = lengths
@@ -53,8 +42,12 @@ class TEMEvaluator():
     def fit_lognormal(self, mu0=10, std0=0.1):
         self.init_lognormal(mu0, std0)
         print("Fitting data to lognormal function...")
+        
+        valid_values = self.counts > 0
         self.fitresults = lmfit.minimize(self.lognormal_residual, self.p,\
-                        args=(self.bins, self.counts, self.errors))
+                        args=(self.bins[valid_values],\
+                              self.counts[valid_values],\
+                              self.errors[valid_values]))
         print(lmfit.fit_report(self.fitresults))
         self.p_result = self.fitresults.params
         
@@ -96,8 +89,11 @@ class TEMEvaluator():
     def fit_gaussian(self, mu0=1, std0=0.1):
         self.init_gaussian(mu0, std0)
         print("Fitting data to gaussian function...")
+        valid_values = self.counts > 0
         self.fitresults = lmfit.minimize(self.gaussian_residual, self.p,\
-                        args=(self.bins, self.counts, self.errors))
+                        args=(self.bins[valid_values],\
+                              self.counts[valid_values],\
+                              self.errors[valid_values]))
         print(lmfit.fit_report(self.fitresults))
         self.p_result = self.fitresults.params
         
@@ -159,14 +155,68 @@ class TEMEvaluator():
         return (self.gaussian(p, x) - y)/sy
         
     def load_xls(self, xlsfile, lengthidx=-1):
-        xlsdata = open(xlsfile, "r")
+        xlsdata = open(xlsfile, "r", encoding='utf-8', errors='ignore')
         lengths = []
         for line in xlsdata:
             split_line = line.strip().split()
+            if len(split_line) == 0:
+                continue
             try:
                 first_entry_number = float(split_line[0])
             except ValueError:
                 continue
-            lengths.append(float(split_line[lengthidx]))
+            length_value = float(split_line[lengthidx].replace(",","."))
+            lengths.append(length_value)
         xlsdata.close()
         return np.asarray(lengths)
+        
+class TEMCubes(TEM):
+    def __init__(self):
+        super().__init__()
+    
+    def load(self, alternating_edge_lengths):
+        self.L = np.asarray(alternating_edge_lengths)
+        self.a = self.L[::2]
+        self.b = self.L[1::2]
+        self.aspect = self.b/self.a
+
+    def prepare_length_histogram(self):
+        self.make_count_histogram(self.L)
+        self.xlabel = "$\mathit{a} \, / \, nm$"
+    
+    def prepare_aspect_histogram(self):
+        self.make_count_histogram(self.aspect)
+        self.xlabel = "$\mathit{b} \, / \, \mathit{a}$"
+        
+class TEMSpheres(TEM):
+    def __init__(self):
+        super().__init__()
+    
+    def load(self, diameters):
+        self.L = diameters
+
+    def prepare_length_histogram(self):
+        self.make_count_histogram(self.L)
+        self.xlabel = "$\mathit{d} \, / \, nm$"
+
+class TEMSpindles(TEM):
+    def __init__(self):
+        super().__init__()
+    
+    def load(self, alternating_spindle_lengths):
+        self.L = np.asarray(alternating_spindle_lengths)
+        self.a = self.L[::2]
+        self.b = self.L[1::2]
+        self.aspect = self.b/self.a
+
+    def prepare_length_histogram_a(self):
+        self.make_count_histogram(self.a)
+        self.xlabel = "$\mathit{a} \, / \, nm$"
+
+    def prepare_length_histogram_b(self):
+        self.make_count_histogram(self.b)
+        self.xlabel = "$\mathit{b} \, / \, nm$"
+    
+    def prepare_aspect_histogram(self):
+        self.make_count_histogram(self.aspect)
+        self.xlabel = "$\mathit{b} \, / \, \mathit{a}$"
