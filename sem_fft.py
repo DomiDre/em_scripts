@@ -1,16 +1,18 @@
 import numpy as np
 import fabio
+from PIL import Image
 import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from scipy.ndimage.interpolation import rotate
+import sys
 
 pi = np.pi
+__version__ = 1.0
 
 class SEM_FFT():
-    def __init__(self, skip_lower_pixels=135):
-        self.skip_lower_pixels = skip_lower_pixels
+    def __init__(self):
         self.pixels_to_nm = -1
         
         self.colorbar_pad = 0.6
@@ -56,15 +58,104 @@ class SEM_FFT():
     def set_pixel_per_nm(self, pixel_per_nm):
         self.pixels_to_nm = 1/pixel_per_nm
         
-    def load_tif_file(self, filepath):
+    def set_pixel_per_size_from_tiffile(self, filepath):
+        image_file = Image.open(filepath)
+        info_string = image_file.tag[34118][0]
+        image_pixel_size = info_string.split("Image Pixel Size",1)[-1].\
+                                        split('\n')[0].\
+                                        split('=')[-1].strip()
+        image_pixel_size, image_pixel_unit = image_pixel_size.split()
+        image_pixel_size = float(image_pixel_size)
+        if image_pixel_unit != 'nm':
+            if image_pixel_unit == "pm":
+                image_pixel_size /= 1000
+            elif image_pixel_unit == "µm":
+                image_pixel_size *= 1000
+            else:
+                print("WARNING: Image pixel size not in nm or pm. Correct this case in code.")
+                print(image_pixel_unit)
+                sys.exit()
+        print("Set nm/pixels conversion factor to:", image_pixel_size)
+        self.pixels_to_nm = image_pixel_size
+
+    def get_info(self, filepath):
+        image_file = Image.open(filepath)
+        self.info_string = image_file.tag[34118][0]
+        return self.info_string
+
+    def load_tif_file(self, filepath, set_pixelsize_from_file=True):
         self.filepath = filepath
         tiffile = fabio.open(filepath)
-        data = tiffile.data[::-1,:].T
-        self.data = data[self.skip_lower_pixels:self.skip_lower_pixels+512,\
-                    self.skip_lower_pixels:self.skip_lower_pixels+512] 
+        self.data = tiffile.data[::-1,:].T
+        self.Nx, self.Ny = self.data.shape
+
+        if set_pixelsize_from_file:
+            self.set_pixel_per_size_from_tiffile(filepath)
+        self.x = np.arange(self.Nx)*self.pixels_to_nm
+        self.y = np.arange(self.Ny)*self.pixels_to_nm
+        
+    def cut_data(self, x0=None, y0=None,\
+                       x_width=None, y_height=None):
+        self.y0 = y0
+        self.x0 = x0
+        self.x_width = x_width
+        self.y_height = y_height
+        
+        if x_width is not None:
+            if x0 is None:
+                right_edge = x_width
+            else:
+                right_edge = x0 + x_width
+        else:
+            right_edge = None
+
+        if y_height is not None:
+            if y0 is None:
+                upper_edge = y_height
+            else:
+                upper_edge = y0 + y_height
+        else:
+            upper_edge = None
+
+        self.data = self.data[x0:right_edge, y0:upper_edge] 
         self.Nx, self.Ny = self.data.shape
         self.x = np.arange(self.Nx)*self.pixels_to_nm
         self.y = np.arange(self.Ny)*self.pixels_to_nm
+        
+    
+    def annotate_point_pair(self, ax, text, xy_start, xy_end, xycoords='data',\
+                text_offset=6, arrowprops = None):
+        """
+        Annotates two points by connecting them with an arrow. 
+        The annotation text is placed near the center of the arrow.
+        
+        Taken from Stack Overflow.
+        """
+
+        if arrowprops is None:
+            arrowprops = dict(arrowstyle= '<->')
+
+        assert isinstance(text,str)
+
+        xy_text = ((xy_start[0] + xy_end[0])/2. , (xy_start[1] + xy_end[1])/2.)
+        arrow_vector = xy_end[0]-xy_start[0] + (xy_end[1] - xy_start[1]) * 1j
+        arrow_angle = np.angle(arrow_vector)
+        text_angle = arrow_angle - 0.5*np.pi
+
+        ax.annotate(
+                '', xy=xy_end, xycoords=xycoords,
+                xytext=xy_start, textcoords=xycoords,
+                arrowprops=arrowprops)
+
+        label = ax.annotate(
+            text, 
+            xy=xy_text, 
+            xycoords=xycoords,
+            xytext=(text_offset * np.cos(text_angle), text_offset * np.sin(text_angle)), 
+            textcoords='offset points')
+
+        return label
+        
         
     def plot_sem_image(self):
         fig = plt.figure()
@@ -81,9 +172,11 @@ class SEM_FFT():
         fig.tight_layout()
         plotname = self.filepath.rsplit(".",1)[0] + "_sem.png"
         fig.savefig(plotname)
-        plt.show()
     
+    def show(self):
+        plt.show()
     def do_fft(self):
+        self.cut_data(135, 135, 512, 512)
         fftdata = np.fft.fft2(self.data)
         absfft = np.abs(fftdata)
 
@@ -122,9 +215,13 @@ class SEM_FFT():
         self.fft_centeridx_y = self.get_idx(self.ffty, 0.)
         self.fftabs_maxval = np.amax(self.fftdata_abs)
         
-    def plot_fft(self):
-        fig = plt.figure(figsize=(16/2.54, 12/2.54))
-        ax = fig.add_subplot(121)
+    def plot_fft(self, k_ticker_spacing=1, plot_seperate=False):
+        if plot_seperate:
+            fig = plt.figure(figsize=(8/2.54, 10/2.54))
+            ax = fig.add_subplot(111)
+        else:
+            fig = plt.figure(figsize=(16/2.54, 12/2.54))
+            ax = fig.add_subplot(121)
         im = ax.pcolormesh(self.x, self.y, self.data.T, cmap=self.sem_cmap)#, cmap='gist_gray')
         divider = make_axes_locatable(ax)
         cax = divider.append_axes("bottom", size="5%", pad=self.colorbar_pad)
@@ -136,7 +233,15 @@ class SEM_FFT():
         ax.set_ylim(self.y[0], self.y[-1])
         ax.set_aspect('equal')
 
-        ax2 = fig.add_subplot(122)
+        if plot_seperate:
+            fig.tight_layout()
+            fig.savefig(self.filepath.rsplit(".",1)[0] + "_SEM")
+
+
+            fig = plt.figure(figsize=(8/2.54, 10/2.54))
+            ax2 = fig.add_subplot(111)
+        else:
+            ax2 = fig.add_subplot(122)
         im = ax2.pcolormesh(self.fftx, self.ffty, self.fftdata_abs.T, \
                     norm=matplotlib.colors.LogNorm(1e2, self.fftabs_maxval),\
                     cmap=self.cmap)
@@ -149,13 +254,12 @@ class SEM_FFT():
         ax2.set_aspect('equal')
         ax2.set_xlim(min(self.fftx), max(self.fftx))
         ax2.set_ylim(min(self.ffty), max(self.ffty))
-        myLocator = mticker.MultipleLocator(0.5)
+        myLocator = mticker.MultipleLocator(k_ticker_spacing)
         ax2.xaxis.set_major_locator(myLocator)
         ax2.yaxis.set_major_locator(myLocator)
         fig.tight_layout()
-        plotname = self.filepath.rsplit(".",1)[0] + "_fft.png"
+        plotname = self.filepath.rsplit(".",1)[0] + "_fft"
         fig.savefig(plotname)
-        plt.show()
         
     def radial_integrate(self):
         y,x = np.indices(self.fftdata_abs.shape)
@@ -170,8 +274,8 @@ class SEM_FFT():
         
         savefile = open(filename, "w")
         savefile.write("#Loaded data from: "+str(self.filepath)+"  \n")
-        savefile.write("#Cutted pixels from: x,y=("+str(self.skip_lower_pixels)+" .. "+\
-                       str(self.skip_lower_pixels+512)+")\n")
+        savefile.write("#Cutted pixels from: x,y=("+str(self.y0)+" .. "+\
+                       str(self.y0+512)+")\n")
         savefile.write("#Performed FFT and radially integrated data\n")
         savefile.write("#k / nm-1\tFFT / a.u.\n")
         for ik, kval in enumerate(k_values):
@@ -188,7 +292,8 @@ class SEM_FFT():
         ax.set_xlim(min(k_values[1:]), max(k_values))
         ax.set_ylim(min(radialprofile[1:])*0.8, max(radialprofile[1:])*1.2)
         fig.tight_layout()
-        plt.show()
+        plotname = self.filepath.rsplit(".",1)[0] + "_fft_radint.png"
+        fig.savefig(plotname)
 
     def rotate_fft(self, angle, left_edge = -0.025, right_edge = 0.025):
         self.angle = angle
@@ -217,8 +322,10 @@ class SEM_FFT():
         ax_rot.axvline(left_edge, color='black')
         ax_rot.axvline(right_edge, color='black')
         fig.tight_layout()
-        plt.show()
-        
+        plotname = self.filepath.rsplit(".",1)[0] + "_fft_rotated_by_"+\
+                   str(angle)+".png"
+        fig.savefig(plotname)
+
     def project_rotated_data(self):
         x_idx_left = self.get_idx(self.rotfftx, self.left_edge)
         x_idx_right = self.get_idx(self.rotfftx, self.right_edge)
@@ -233,8 +340,8 @@ class SEM_FFT():
         
         savefile = open(filename, "w")
         savefile.write("#Loaded data from: "+str(self.filepath)+"  \n")
-        savefile.write("#Cutted pixels from: x,y=("+str(self.skip_lower_pixels)+\
-                       " .. " + str(self.skip_lower_pixels+512)+")\n")
+        savefile.write("#Cutted pixels from: x,y=("+str(self.y0)+\
+                       " .. " + str(self.y0+512)+")\n")
         savefile.write("#Performed FFT\n")
         savefile.write("#Rotated FFT data by an angle of " + str(self.angle) +\
                        " deg\n")
@@ -258,4 +365,3 @@ class SEM_FFT():
         fig.tight_layout()
         plotname = self.filepath.rsplit(".",1)[0] + "_fft_rotated_integrated.png"
         fig.savefig(plotname)
-        plt.show()

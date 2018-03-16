@@ -10,16 +10,20 @@ class TEM():
         self.bins = None
         self.integrated_sum = None
         
+        self.fig = None
+
         self.p = None
         self.initialize_data()
     
     def initialize_data(self):
         self.Nbins = 10
         
-    def load(self, diameters):
-        print("Load not defined.")
+    def load(self, distances):
+        self.L = distances
+
     def prepare_length_histogram(self):
-        print("Prepare Length Histogram not defined.")
+        self.make_count_histogram(self.L)
+        self.xlabel = "$\mathit{L} \, / \, nm$"
         
     def prepare_aspect_histogram(self):
         print("Prepare Aspect Histogram not defined.")
@@ -50,35 +54,72 @@ class TEM():
                               self.errors[valid_values]))
         print(lmfit.fit_report(self.fitresults))
         self.p_result = self.fitresults.params
-        
-    def plot_lognormal(self, savename="LognormalFit.png",\
-                        mu_unit="nm", mu_sf=1, sigma_unit="\%", sigma_sf=100):
-        fig, ax = plt.subplots()
-        ax.errorbar(self.bins, self.counts, self.errors,\
-                    markersize=0, linestyle='None', color='darkgreen')
-        ax.hist(self.raw_data, bins=self.Nbins, alpha=0.7, facecolor='green')
+    
+    def plot_histogram(self, savename=None,\
+                        show=True):
+        if self.fig is None:
+            self.fig = plt.figure()
+        self.ax = self.fig.add_subplot(111)
+
+        self.ax.errorbar(self.bins, self.counts, self.errors,\
+                    markersize=0, capsize=2, elinewidth=1, linestyle='None', color='darkgreen')
+        self.ax.hist(self.raw_data, bins=self.Nbins, alpha=0.7, facecolor='green')
         
         x_for_fit_display = np.linspace(self.bins[0]*0.9, self.bins[-1]*1.1, 100)
-        ax.plot(x_for_fit_display,\
+        
+        self.ax.set_xlabel(self.xlabel)
+        self.ax.set_ylabel("$counts$")
+#        self.ax.tick_params(self.axis='both', pad=6, width=1, length=2)
+        self.ax.set_xlim([self.bins[0]-self.bin_width, self.bins[-1]+self.bin_width])
+        self.ax.legend(loc='best')
+        self.fig.tight_layout()
+        if savename is not None:
+            self.save_plot(savename)
+        if show:
+            plt.show()
+
+    def plot_lognormal(self, savename=None,\
+                        mu_unit="nm", mu_sf=1, sigma_unit="\%", sigma_sf=100,\
+                        show=True):
+        if self.fig is None:
+            self.fig = plt.figure()
+        self.ax = self.fig.add_subplot(111)
+
+        self.ax.errorbar(self.bins, self.counts, self.errors,\
+                    markersize=0, capsize=2, elinewidth=1, linestyle='None', color='darkgreen')
+        self.ax.hist(self.raw_data, bins=self.Nbins, alpha=0.7, facecolor='green')
+        
+        x_for_fit_display = np.linspace(self.bins[0]*0.9, self.bins[-1]*1.1, 100)
+        self.ax.plot(x_for_fit_display,\
                 self.lognormal(self.p_result, x_for_fit_display),\
-                color='black', lw=1, marker='None',\
-                label= "$\mu_{log}\,=\,"+\
+                color='black', lw=1, marker='None')
+        self.ax.plot([], [], marker='None', ls='None', label=\
+                       "$\mu_{log}\,=\,"+\
                            "{:.1f}".format(self.p_result["logmu"].value*mu_sf)+\
                            "\,"+mu_unit+"$\n"+
                        "$\sigma_{log}\,=\,"+\
                            "{:.1f}".format(self.p_result["logstd"].value*sigma_sf)+\
                            "\,"+sigma_unit+"$")
 
-        ax.set_xlabel(self.xlabel)
-        ax.set_ylabel("$counts$")
-#        ax.tick_params(axis='both', pad=6, width=1, length=2)
-        ax.set_xlim([self.bins[0]-self.bin_width, self.bins[-1]+self.bin_width])
-        ax.legend(loc='best')
-        fig.tight_layout()
-        fig.savefig(savename)
+        self.ax.set_xlabel(self.xlabel)
+        self.ax.set_ylabel("$counts$")
+#        self.ax.tick_params(self.axis='both', pad=6, width=1, length=2)
+        self.ax.set_xlim([self.bins[0]-self.bin_width, self.bins[-1]+self.bin_width])
+        self.ax.legend(loc='best')
+        self.fig.tight_layout()
+        if savename is not None:
+            self.save_plot(savename)
+        if show:
+            plt.show()
+    def save_plot(self, savename, dpi=None):
+        if dpi is not None:
+            self.fig.savefig(savename, dpi=dpi)
+        else:
+            self.fig.savefig(savename)
         print("Saved plot to " + savename)
-        plt.show()
         
+    def show(self):
+        plt.show()
     #Gaussian Fitting
     def init_gaussian(self, mu=1, std=0.1):
         self.p = lmfit.Parameters()
@@ -98,14 +139,14 @@ class TEM():
         self.p_result = self.fitresults.params
         
     def plot_gaussian(self, savename="GaussianFit.png",\
-                        mu_unit="nm", mu_sf=1, sigma_unit="\%", sigma_sf=100):
-        fig, ax = plt.subplots()
-        ax.errorbar(self.bins, self.counts, self.errors,\
-                    markersize=0, linestyle='None', color='darkgreen')
-        ax.hist(self.raw_data, bins=self.Nbins, alpha=0.7, facecolor='green')
+                        mu_unit="nm", mu_sf=1, sigma_unit="nm", sigma_sf=1):
+        fig, self.ax = plt.subplots()
+        self.ax.errorbar(self.bins, self.counts, self.errors,\
+                    markersize=0, capsize=2, elinewidth=1, linestyle='None', color='darkgreen')
+        self.ax.hist(self.raw_data, bins=self.Nbins, alpha=0.7, facecolor='green')
         
         x_for_fit_display = np.linspace(self.bins[0]*0.9, self.bins[-1]*1.1, 100)
-        ax.plot(x_for_fit_display,\
+        self.ax.plot(x_for_fit_display,\
                 self.gaussian(self.p_result, x_for_fit_display),\
                 color='black', lw=1, marker='None',\
                 label= "$\mu\,=\,"+\
@@ -115,10 +156,10 @@ class TEM():
                            "{:.1f}".format(self.p_result["std"].value*sigma_sf)+\
                            "\,"+sigma_unit+"$")
 
-        ax.set_xlabel(self.xlabel)
-        ax.set_ylabel("$counts$")
-        ax.set_xlim([self.bins[0]-self.bin_width, self.bins[-1]+self.bin_width])
-        ax.legend(loc='best')
+        self.ax.set_xlabel(self.xlabel)
+        self.ax.set_ylabel("$counts$")
+        self.ax.set_xlim([self.bins[0]-self.bin_width, self.bins[-1]+self.bin_width])
+        self.ax.legend(loc='best')
         fig.tight_layout()
         fig.savefig(savename)
         print("Saved plot to " + savename)
@@ -158,7 +199,10 @@ class TEM():
         xlsdata = open(xlsfile, "r", encoding='utf-8', errors='ignore')
         lengths = []
         for line in xlsdata:
-            split_line = line.strip().split()
+            if ',' in line:
+                split_line = line.strip().split(',')
+            else:
+                split_line = line.strip().split()
             if len(split_line) == 0:
                 continue
             try:
@@ -169,6 +213,9 @@ class TEM():
             lengths.append(length_value)
         xlsdata.close()
         return np.asarray(lengths)
+    
+    def merge_arrays(self, a, b):
+        return np.concatenate([a,b])
         
 class TEMCubes(TEM):
     def __init__(self):
@@ -207,7 +254,7 @@ class TEMSpindles(TEM):
         self.L = np.asarray(alternating_spindle_lengths)
         self.a = self.L[::2]
         self.b = self.L[1::2]
-        self.aspect = self.b/self.a
+        self.aspect = self.a/self.b
 
     def prepare_length_histogram_a(self):
         self.make_count_histogram(self.a)
@@ -219,4 +266,4 @@ class TEMSpindles(TEM):
     
     def prepare_aspect_histogram(self):
         self.make_count_histogram(self.aspect)
-        self.xlabel = "$\mathit{b} \, / \, \mathit{a}$"
+        self.xlabel = "$\mathit{a} \, / \, \mathit{b}$"
