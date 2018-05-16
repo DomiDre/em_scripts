@@ -3,6 +3,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
+import javabridge
+import bioformats
+
 class TEM():
   def __init__(self):
     self.counts = None
@@ -20,7 +23,20 @@ class TEM():
   def initialize_data(self):
     self.Nbins = 10
   
-  def load_tif_file(self, tiffile):
+  def init_vm(self):
+    javabridge.start_vm(class_path=bioformats.JARS)
+
+    #remove annoying logs
+    myloglevel="ERROR"  # user string argument for logLevel.
+    rootLoggerName = javabridge.get_static_field("org/slf4j/Logger","ROOT_LOGGER_NAME", "Ljava/lang/String;")
+    rootLogger = javabridge.static_call("org/slf4j/LoggerFactory","getLogger", "(Ljava/lang/String;)Lorg/slf4j/Logger;", rootLoggerName)
+    logLevel = javabridge.get_static_field("ch/qos/logback/classic/Level",myloglevel, "Lch/qos/logback/classic/Level;")
+    javabridge.call(rootLogger, "setLevel", "(Lch/qos/logback/classic/Level;)V", logLevel)
+
+  def kill_vm(self):
+    javabridge.kill_vm()
+
+  def load_tif_file(self, tiffile, init_vm=True, kill_vm_on_end=True):
     # get metadata
     metadata = os.popen(
       os.path.dirname(os.path.realpath(__file__))+'/showinf ' + tiffile +\
@@ -44,17 +60,8 @@ class TEM():
     self.nm_per_pixel = float(pixel_size_x)
     
     # get image
-    import javabridge
-    import bioformats
-
-    javabridge.start_vm(class_path=bioformats.JARS)
-
-    #remove annoying logs
-    myloglevel="ERROR"  # user string argument for logLevel.
-    rootLoggerName = javabridge.get_static_field("org/slf4j/Logger","ROOT_LOGGER_NAME", "Ljava/lang/String;")
-    rootLogger = javabridge.static_call("org/slf4j/LoggerFactory","getLogger", "(Ljava/lang/String;)Lorg/slf4j/Logger;", rootLoggerName)
-    logLevel = javabridge.get_static_field("ch/qos/logback/classic/Level",myloglevel, "Lch/qos/logback/classic/Level;")
-    javabridge.call(rootLogger, "setLevel", "(Lch/qos/logback/classic/Level;)V", logLevel)
+    if init_vm:
+      self.init_vm()
 
     #properly select image reader to load data
     #see: https://github.com/CellProfiler/python-bioformats/issues/23
@@ -64,43 +71,59 @@ class TEM():
     wrapper = bioformats.formatreader.ImageReader(path=tiffile, perform_init=False)
     wrapper.rdr = image_reader
     self.data = wrapper.read()[::-1,:].T
-    javabridge.kill_vm()
+    if kill_vm_on_end:
+      javabridge.kill_vm()
 
     self.Nx, self.Ny = self.data.shape
     
     self.x = np.arange(self.Nx)*self.nm_per_pixel
     self.y = np.arange(self.Ny)*self.nm_per_pixel
+  
+  def pretty_plot(self, x0, y0, width=295, height=250, scaleBar=50):
+    plotX = self.x[x0:x0+width]
+    plotY = self.y[y0:y0+height]
+    plotData = self.data[x0:x0+width, y0:y0+height]
+    self.fig = plt.figure()
+    self.ax = self.fig.add_subplot(111)
+    self.ax.pcolormesh(plotX, plotY, plotData.T, cmap=self.sem_cmap)
+    self.ax.set_aspect('equal')
+    self.ax.set_xticklabels('')
+    self.ax.set_yticklabels('')
+    self.ax.set_xticks([])
+    self.ax.set_yticks([])
+    self.ax.set_xlim(plotX[0], plotX[-1])
+    self.ax.set_ylim(plotY[0], plotY[-1])
+
+    r = self.fig.canvas.get_renderer()
     
-  def pretty_plot(self, x0, y0, width=295, height=250, scaleBar=50,\
-                        scalebar_xpad=20):
-      plotX = self.x[x0:x0+width]
-      plotY = self.y[y0:y0+height]
-      plotData = self.data[x0:x0+width, y0:y0+height]
-      self.fig = plt.figure()
-      self.ax = self.fig.add_subplot(111)
-      self.ax.pcolormesh(plotX, plotY, plotData.T, cmap=self.sem_cmap)
-      self.ax.set_aspect('equal')
-      self.ax.set_xticklabels('')
-      self.ax.set_yticklabels('')
-      self.ax.set_xticks([])
-      self.ax.set_yticks([])
-      self.ax.set_xlim(plotX[0], plotX[-1])
-      self.ax.set_ylim(plotY[0], plotY[-1])
-      self.ax.text(plotX[-1]-scaleBar/2-scalebar_xpad, plotY[0]+15+5, '$'+str(scaleBar)+' \, nm$',\
-                    horizontalalignment='center',
-                    color='white')
-      # verticalalignment='bottom',\
-      # transform=self.ax.transAxes,\
-      
-      self.ax.add_patch(
-          patches.Rectangle(
-              (plotX[-1]-scaleBar-scalebar_xpad, plotY[0]+10),   # (x,y)
-              scaleBar,          # width
-              5,          # height
-              color='white'
-          )
+    t = self.ax.text(
+      0,0,str(scaleBar)+' nm',\
+      horizontalalignment='center',
+      color='white')
+    bb = t.get_window_extent(renderer=r)
+    textWidth = bb.width*self.nm_per_pixel
+    textHeight = bb.height*self.nm_per_pixel
+    # print(textWidth)
+    
+    t.remove()
+    offset = 30*self.nm_per_pixel
+    self.ax.text(
+      plotX[-1] - offset - textWidth,\
+      plotY[0]+height*2/20*self.nm_per_pixel+5*self.nm_per_pixel,\
+      '$'+str(scaleBar)+' \, nm$',\
+      horizontalalignment='center',
+      color='white')
+  
+    self.ax.add_patch(
+      patches.Rectangle(
+        (plotX[-1] - offset - textWidth - scaleBar*1/2.,\
+        plotY[0]+height*1/20*self.nm_per_pixel),   # (x,y)
+        scaleBar,          # width
+        height*1/40*self.nm_per_pixel,          # height
+        color='white'
       )
-      self.fig.tight_layout()
+    )
+    self.fig.tight_layout()
       
   def load(self, distances):
     self.L = distances
