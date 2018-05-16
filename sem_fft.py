@@ -4,6 +4,7 @@ from PIL import Image
 import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
+import matplotlib.patches as patches
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from scipy.ndimage.interpolation import rotate
 import sys
@@ -155,23 +156,52 @@ class SEM_FFT():
             textcoords='offset points')
 
         return label
-        
-        
+    
     def plot_sem_image(self):
-        fig = plt.figure()
-        ax = fig.add_subplot(111)
-        im = ax.pcolormesh(self.x, self.y, self.data.T, cmap=self.sem_cmap)
-        divider = make_axes_locatable(ax)
+        self.fig = plt.figure()
+        self.ax = self.fig.add_subplot(111)
+        im = self.ax.pcolormesh(self.x, self.y, self.data.T, cmap=self.sem_cmap)
+        divider = make_axes_locatable(self.ax)
         cax = divider.append_axes("right", size="5%", pad=0.05)
         cb = plt.colorbar(im, cax=cax)#, orientation='horizontal')
-        ax.set_xlabel("$ \mathit{x} \, / \, nm $")
-        ax.set_ylabel("$ \mathit{y} \, / \, nm $")
-        ax.set_aspect('equal')
-        ax.set_xlim(self.x[0], self.x[-1])
-        ax.set_ylim(self.y[0], self.y[-1])
-        fig.tight_layout()
+        self.ax.set_xlabel("$ \mathit{x} \, / \, nm $")
+        self.ax.set_ylabel("$ \mathit{y} \, / \, nm $")
+        self.ax.set_aspect('equal')
+        self.ax.set_xlim(self.x[0], self.x[-1])
+        self.ax.set_ylim(self.y[0], self.y[-1])
+        self.fig.tight_layout()
         plotname = self.filepath.rsplit(".",1)[0] + "_sem.png"
-        fig.savefig(plotname)
+        self.fig.savefig(plotname)
+    
+    def pretty_plot(self, x0, y0, width=295, height=250, scaleBar=50):
+        plotX = self.x[x0:x0+width]
+        plotY = self.y[y0:y0+height]
+        plotData = self.data[x0:x0+width, y0:y0+height]
+        self.fig = plt.figure()
+        self.ax = self.fig.add_subplot(111)
+        im = self.ax.pcolormesh(plotX, plotY, plotData.T, cmap=self.sem_cmap)
+        self.ax.set_aspect('equal')
+        self.ax.set_xticklabels('')
+        self.ax.set_yticklabels('')
+        self.ax.set_xticks([])
+        self.ax.set_yticks([])
+        self.ax.set_xlim(plotX[0], plotX[-1])
+        self.ax.set_ylim(plotY[0], plotY[-1])
+        self.ax.text(plotX[-1]-scaleBar/2-10, plotY[0]+15+5, '$'+str(scaleBar)+' \, nm$',\
+                     horizontalalignment='center',
+                     color='white')
+        # verticalalignment='bottom',\
+        # transform=self.ax.transAxes,\
+        
+        self.ax.add_patch(
+            patches.Rectangle(
+                (plotX[-1]-scaleBar-10, plotY[0]+10),   # (x,y)
+                scaleBar,          # width
+                5,          # height
+                color='white'
+            )
+        )
+        self.fig.tight_layout()
     
     def show(self):
         plt.show()
