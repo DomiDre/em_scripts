@@ -301,7 +301,13 @@ class TEM():
 
   def gaussian_residual(self, p, x, y, sy):
     return (self.gaussian(p, x) - y)/sy
-    
+  
+  def load_csv(self, csvfile, delimiter=None):
+    csvdata = np.genfromtxt(csvfile, delimiter=delimiter)
+    L = csvdata[:,-1]
+    self.load(L)
+    return L
+
   def load_xls(self, xlsfile, lengthidx=-1):
     xlsdata = open(xlsfile, "r", encoding='utf-8', errors='ignore')
     lengths = []
@@ -319,7 +325,9 @@ class TEM():
       length_value = float(split_line[lengthidx].replace(",","."))
       lengths.append(length_value)
     xlsdata.close()
-    return np.asarray(lengths)
+    lengths = np.asarray(lengths)
+    self.load(lengths)
+    return lengths
   
   def merge_arrays(self, a, b):
     return np.concatenate([a,b])
