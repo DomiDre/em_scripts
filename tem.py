@@ -87,7 +87,6 @@ class TEM():
     self.ax = plt.Axes(self.fig, [0., 0., 1., 1.], )
     self.ax.set_axis_off()
     self.fig.add_axes(self.ax)
-    # self.ax = self.fig.add_subplot(111)
     self.ax.pcolormesh(plotX, plotY, plotData.T, cmap=self.sem_cmap)
     self.ax.set_aspect('equal')
     self.ax.set_xticklabels('')
