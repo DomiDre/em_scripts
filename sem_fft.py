@@ -178,7 +178,9 @@ class SEM_FFT():
         plotY = self.y[y0:y0+height]
         plotData = self.data[x0:x0+width, y0:y0+height]
         self.fig = plt.figure()
-        self.ax = self.fig.add_subplot(111)
+        self.ax = plt.Axes(self.fig, [0., 0., 1., 1.], )
+        self.ax.set_axis_off()
+        self.fig.add_axes(self.ax)
         im = self.ax.pcolormesh(plotX, plotY, plotData.T, cmap=self.sem_cmap)
         self.ax.set_aspect('equal')
         self.ax.set_xticklabels('')
