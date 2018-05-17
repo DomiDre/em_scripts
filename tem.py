@@ -303,7 +303,7 @@ class TEM():
     return (self.gaussian(p, x) - y)/sy
   
   def load_csv(self, csvfile, delimiter=None):
-    csvdata = np.genfromtxt(csvfile, delimiter=delimiter)
+    csvdata = np.genfromtxt(csvfile, skip_header=1, delimiter=delimiter)
     L = csvdata[:,-1]
     self.load(L)
     return L
