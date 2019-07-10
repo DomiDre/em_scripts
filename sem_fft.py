@@ -87,7 +87,7 @@ class SEM_FFT():
   def load_tif_file(self, filepath, set_pixelsize_from_file=True):
     self.filepath = filepath
     tiffile = fabio.open(filepath)
-    self.data = tiffile.data[::-1,:].T
+    self.data = tiffile.data[::-1,:].T[0]
     self.Nx, self.Ny = self.data.shape
 
     if set_pixelsize_from_file:
@@ -172,7 +172,10 @@ class SEM_FFT():
     plotname = self.filepath.rsplit(".",1)[0] + "_sem.png"
     self.fig.savefig(plotname)
 
-  def pretty_plot(self, x0=200, y0=200, width=295, height=250, scaleBar=50):
+  def pretty_plot(self,
+    x0=200, y0=200, width=295, height=250, scaleBar=50,
+    title=None, label_x0=None, label_y0=None, label_y1=None,
+    vmin=None, vmax=None, legendcolor='white'):
     plotX = self.x[x0:x0+width]
     plotY = self.y[y0:y0+height]
     plotData = self.data[x0:x0+width, y0:y0+height]
@@ -180,7 +183,28 @@ class SEM_FFT():
     self.ax = plt.Axes(self.fig, [0., 0., 1., 1.], )
     self.ax.set_axis_off()
     self.fig.add_axes(self.ax)
-    im = self.ax.pcolormesh(plotX, plotY, plotData.T, cmap=self.sem_cmap)
+    im = self.ax.pcolormesh(
+      plotX, plotY, plotData.T, cmap=self.sem_cmap,
+      vmin=vmin, vmax=vmax)
+    if title is not None:
+      if label_x0 is not None and label_y0 is not None:
+        if label_y1 is None:
+          label_y1 = 0.95
+        self.ax.add_patch(
+          patches.Rectangle(
+            (label_x0, label_y0),   # (x,y)
+            0.95-label_x0,          # width
+            label_y1-label_y0,          # height
+            color='black',
+            transform=self.ax.transAxes
+          ),
+        )
+      self.ax.text(0.95, 0.95,\
+          title,\
+          color='white',\
+          horizontalalignment='right',
+          verticalalignment='top',\
+          transform=self.ax.transAxes)
     self.ax.set_aspect('equal')
     self.ax.set_xticklabels('')
     self.ax.set_yticklabels('')
@@ -189,8 +213,9 @@ class SEM_FFT():
     self.ax.set_xlim(plotX[0], plotX[-1])
     self.ax.set_ylim(plotY[0], plotY[-1])
 
+    scale_str = str(scaleBar) + ' nm' if scaleBar < 1000 else str(int(scaleBar/1000)) + ' µm'
     t = self.ax.text(
-      plotX[0]+39.9, plotY[0]+100, str(scaleBar) + ' nm',
+      plotX[0]+39.9, plotY[0]+100, scale_str,
       horizontalalignment='center',
       color='black')
 
@@ -205,12 +230,13 @@ class SEM_FFT():
     offsetTextScalebar = max(textWidth, scaleBar)
     rightOffset = 15*self.pixels_to_nm
     bottomOffset = 15 * self.pixels_to_nm
+
     self.ax.text(
       plotX[-1] - rightOffset - offsetTextScalebar/2,
       plotY[0] + bottomOffset + textHeight*1/4,
-      '$'+str(scaleBar)+' \, nm$',\
+      scale_str,\
       horizontalalignment='center',
-      color='white')
+      color=legendcolor)
 
     self.ax.add_patch(
       patches.Rectangle(
@@ -218,7 +244,7 @@ class SEM_FFT():
         plotY[0] + bottomOffset + textHeight*1/20),   # (x,y)
         scaleBar,          # width
         textHeight*1/40,          # height
-        color='white'
+        color=legendcolor
       )
     )
     # end

@@ -85,7 +85,7 @@ class TEM():
     self.x = np.arange(self.Nx)*self.nm_per_pixel
     self.y = np.arange(self.Ny)*self.nm_per_pixel
 
-  def pretty_plot(self, x0, y0, width=2048, height=2048, scaleBar=50):
+  def pretty_plot(self, x0, y0, width=2048, height=2048, scaleBar=50, unit='nm'):
     plotX = self.x[x0:x0+width]
     plotY = self.y[y0:y0+height]
     plotData = self.data[x0:x0+width, y0:y0+height]
@@ -103,7 +103,7 @@ class TEM():
     self.ax.set_ylim(plotY[0], plotY[-1])
 
     t = self.ax.text(
-      plotX[0]+39.9, plotY[0]+100, str(scaleBar) + ' nm',
+      plotX[0]+39.9, plotY[0]+100, str(scaleBar) + ' ' + unit,
       horizontalalignment='center',
       color='black')
 
@@ -120,7 +120,7 @@ class TEM():
     self.ax.text(
       plotX[-1] - rightOffset - textWidth,
       plotY[0] + bottomOffset + textHeight*1/4,
-      '$'+str(scaleBar)+' \, nm$',\
+      '$'+str(scaleBar)+' \, '+unit+'$',\
       horizontalalignment='center',
       color='white')
 
